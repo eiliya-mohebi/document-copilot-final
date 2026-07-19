@@ -1,9 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "document-copilot-backend"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "fastapi==0.139.0",
+    "httpx==0.28.1",
+    "pydantic==2.13.4",
+    "pydantic-settings==2.14.2",
+    "structlog==26.1.0",
+    "supabase==2.31.0",
+    "uvicorn==0.51.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
 
 [tool.uv]
 add-bounds = "exact"
 exclude-newer = "7 days"
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+    "ruff==0.15.21",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = [
+    "integration: tests that require live Supabase credentials",
+]
