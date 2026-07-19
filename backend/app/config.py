@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     supabase_anon_key: str = Field(min_length=1)
     supabase_service_role_key: str = Field(min_length=1)
 
+    # Direct/session Postgres URL (not the transaction pooler).
+    database_url: str = Field(min_length=1)
+
     # Comma-separated in .env; use `cors_origins` for the parsed list.
     allowed_origins: str = "http://localhost:5173"
 
@@ -28,6 +31,21 @@ class Settings(BaseSettings):
             for origin in self.allowed_origins.split(",")
             if origin.strip()
         ]
+
+    @computed_field
+    @property
+    def async_database_url(self) -> str:
+        url = self.database_url
+        if url.startswith("postgresql+psycopg://"):
+            return url
+        if url.startswith("postgresql://"):
+            return "postgresql+psycopg://" + url.removeprefix("postgresql://")
+        if url.startswith("postgres://"):
+            return "postgresql+psycopg://" + url.removeprefix("postgres://")
+        raise ValueError(
+            "DATABASE_URL must be a postgres URL "
+            "(postgresql://, postgres://, or postgresql+psycopg://)"
+        )
 
 
 settings = Settings()

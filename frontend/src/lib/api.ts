@@ -6,6 +6,11 @@ export type MeResponse = {
   email: string
 }
 
+export type ThreadResponse = {
+  id: string
+  title: string
+}
+
 export async function getAccessToken(): Promise<string | null> {
   const { data } = await supabase.auth.getSession()
   return data.session?.access_token ?? null
@@ -47,4 +52,7 @@ export const api = {
     withAuth<T>(path, { ...options, method: 'DELETE' }),
 
   me: () => api.get<MeResponse>('/me'),
+
+  createThread: (title?: string) =>
+    api.post<ThreadResponse>('/threads', title ? { title } : {}),
 }

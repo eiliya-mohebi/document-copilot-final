@@ -7,10 +7,13 @@ name = "document-copilot-backend"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
+    "alembic==1.18.5",
     "fastapi==0.139.0",
     "httpx==0.28.1",
+    "psycopg[binary]==3.3.4",
     "pydantic==2.13.4",
     "pydantic-settings==2.14.2",
+    "sqlalchemy[asyncio]==2.0.51",
     "structlog==26.1.0",
     "supabase==2.31.0",
     "uvicorn==0.51.0",
@@ -26,12 +29,15 @@ exclude-newer = "7 days"
 [dependency-groups]
 dev = [
     "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
     "ruff==0.15.21",
 ]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 markers = [
     "integration: tests that require live Supabase credentials",
 ]

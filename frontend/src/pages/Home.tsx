@@ -1,49 +1,32 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { api, type MeResponse } from '@/lib/api'
+import { api } from '@/lib/api'
 import { ApiError } from '@/lib/http'
 import { supabase } from '@/lib/supabase'
 
 export function Home() {
   const navigate = useNavigate()
-  const [me, setMe] = useState<MeResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isCreating, setIsCreating] = useState(false)
 
-  useEffect(() => {
-    let mounted = true
-
-    api
-      .me()
-      .then((response) => {
-        if (mounted) {
-          setMe(response)
-          setError(null)
-        }
-      })
-      .catch((err: unknown) => {
-        if (!mounted) {
-          return
-        }
-        if (err instanceof ApiError) {
-          setError(err.message)
-          return
-        }
-        setError('Failed to load identity from the API.')
-      })
-      .finally(() => {
-        if (mounted) {
-          setIsLoading(false)
-        }
-      })
-
-    return () => {
-      mounted = false
+  async function handleNewChat() {
+    setIsCreating(true)
+    setError(null)
+    try {
+      const thread = await api.createThread()
+      navigate(`/chats/${thread.id}`)
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        setError(err.message)
+      } else {
+        setError('Could not create a chat thread.')
+      }
+    } finally {
+      setIsCreating(false)
     }
-  }, [])
+  }
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -54,42 +37,27 @@ export function Home() {
     <div className="mx-auto flex min-h-svh max-w-lg flex-col justify-center gap-6 p-6">
       <div>
         <p className="text-sm text-muted-foreground">Document Copilot</p>
-        <h1 className="text-2xl font-semibold tracking-tight">You are signed in</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Start a chat</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Open a new thread and ask a question. Replies are stubbed until retrieval
+          is wired up.
+        </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Protected API identity</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground">Calling protected API…</p>
-          ) : null}
+      {error ? (
+        <p className="text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
 
-          {error ? (
-            <p className="text-sm text-destructive" role="alert">
-              {error}
-            </p>
-          ) : null}
-
-          {me ? (
-            <dl className="space-y-3 text-sm">
-              <div>
-                <dt className="text-muted-foreground">Email</dt>
-                <dd className="font-medium">{me.email}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">User id</dt>
-                <dd className="font-mono text-xs">{me.id}</dd>
-              </div>
-            </dl>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <Button type="button" variant="outline" onClick={handleSignOut}>
-        Sign out
-      </Button>
+      <div className="flex flex-col gap-3">
+        <Button type="button" onClick={handleNewChat} disabled={isCreating}>
+          {isCreating ? 'Creating…' : 'New chat'}
+        </Button>
+        <Button type="button" variant="outline" onClick={handleSignOut}>
+          Sign out
+        </Button>
+      </div>
     </div>
   )
 }
