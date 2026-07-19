@@ -68,7 +68,7 @@ def test_stream_rejects_missing_bearer() -> None:
 
 def test_stream_rejects_unknown_thread(client: TestClient) -> None:
     with patch(
-        "app.api.chat.chat_store.get_thread_for_user",
+        "app.api.chat.chat_store.get_thread_by_id",
         AsyncMock(return_value=None),
     ):
         response = client.post(
@@ -88,6 +88,35 @@ def test_stream_rejects_unknown_thread(client: TestClient) -> None:
     assert response.status_code == 404
 
 
+def test_stream_rejects_other_users_thread(client: TestClient) -> None:
+    other_user = uuid.UUID("22222222-2222-2222-2222-222222222222")
+    thread = type(
+        "Thread",
+        (),
+        {"id": THREAD_ID, "user_id": other_user, "title": "Private"},
+    )()
+
+    with patch(
+        "app.api.chat.chat_store.get_thread_by_id",
+        AsyncMock(return_value=thread),
+    ):
+        response = client.post(
+            "/chat/stream",
+            json={
+                "threadId": str(THREAD_ID),
+                "messages": [
+                    {
+                        "id": "msg-1",
+                        "role": "user",
+                        "parts": [{"type": "text", "text": "Hello"}],
+                    }
+                ],
+            },
+        )
+
+    assert response.status_code == 403
+
+
 def test_stream_emits_ai_sdk_ui_message_events(client: TestClient) -> None:
     thread = type(
         "Thread",
@@ -97,8 +126,12 @@ def test_stream_emits_ai_sdk_ui_message_events(client: TestClient) -> None:
 
     with (
         patch(
-            "app.api.chat.chat_store.get_thread_for_user",
+            "app.api.chat.chat_store.get_thread_by_id",
             AsyncMock(return_value=thread),
+        ),
+        patch(
+            "app.api.chat.chat_store.append_turn",
+            AsyncMock(),
         ),
         patch(
             "app.api.chat.stub_ui_message_stream",
@@ -136,6 +169,84 @@ def test_stream_emits_ai_sdk_ui_message_events(client: TestClient) -> None:
 
     deltas = "".join(e["delta"] for e in typed if e["type"] == "text-delta")
     assert len(deltas) > 0
+
+
+def test_stream_persists_turn_after_success(client: TestClient) -> None:
+    from app.chat.streaming import STUB_REPLY
+
+    thread = type(
+        "Thread",
+        (),
+        {"id": THREAD_ID, "user_id": USER_ID, "title": "New chat"},
+    )()
+
+    with (
+        patch(
+            "app.api.chat.chat_store.get_thread_by_id",
+            AsyncMock(return_value=thread),
+        ),
+        patch(
+            "app.api.chat.chat_store.append_turn",
+            AsyncMock(),
+        ) as mock_append,
+        patch(
+            "app.api.chat.stub_ui_message_stream",
+            stub_ui_message_stream_fast,
+        ),
+    ):
+        response = client.post(
+            "/chat/stream",
+            json={
+                "threadId": str(THREAD_ID),
+                "messages": [
+                    {
+                        "id": "msg-1",
+                        "role": "user",
+                        "parts": [{"type": "text", "text": "Hello"}],
+                    }
+                ],
+            },
+        )
+
+    assert response.status_code == 200
+    # Consume the stream so the generator can finish and persist.
+    assert "[DONE]" in response.text
+    mock_append.assert_awaited_once()
+    assert mock_append.await_args.args[1] == THREAD_ID
+    assert mock_append.await_args.kwargs["assistant_text"] == STUB_REPLY
+    assert mock_append.await_args.kwargs["user_text"] == "Hello"
+    assert mock_append.await_args.kwargs["user_parts"] == [
+        {"type": "text", "text": "Hello"}
+    ]
+
+
+def test_stream_does_not_persist_when_thread_missing(client: TestClient) -> None:
+    with (
+        patch(
+            "app.api.chat.chat_store.get_thread_by_id",
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            "app.api.chat.chat_store.append_turn",
+            AsyncMock(),
+        ) as mock_append,
+    ):
+        response = client.post(
+            "/chat/stream",
+            json={
+                "threadId": str(THREAD_ID),
+                "messages": [
+                    {
+                        "id": "msg-1",
+                        "role": "user",
+                        "parts": [{"type": "text", "text": "Hello"}],
+                    }
+                ],
+            },
+        )
+
+    assert response.status_code == 404
+    mock_append.assert_not_awaited()
 
 
 async def stub_ui_message_stream_fast(text: str, **_: object):

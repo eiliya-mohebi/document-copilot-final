@@ -11,6 +11,33 @@ export type ThreadResponse = {
   title: string
 }
 
+export type ThreadListItem = {
+  id: string
+  title: string
+  updatedAt: string
+}
+
+export type ThreadListResponse = {
+  threads: ThreadListItem[]
+}
+
+export type UIMessagePart = {
+  type: string
+  text?: string
+}
+
+export type UIChatMessage = {
+  id: string
+  role: 'user' | 'assistant' | 'system'
+  parts: UIMessagePart[]
+}
+
+export type ThreadHistoryResponse = {
+  id: string
+  title: string
+  messages: UIChatMessage[]
+}
+
 export async function getAccessToken(): Promise<string | null> {
   const { data } = await supabase.auth.getSession()
   return data.session?.access_token ?? null
@@ -55,4 +82,10 @@ export const api = {
 
   createThread: (title?: string) =>
     api.post<ThreadResponse>('/threads', title ? { title } : {}),
+
+  listThreads: () => api.get<ThreadListResponse>('/threads'),
+
+  getThread: (threadId: string) => api.get<ThreadHistoryResponse>(`/threads/${threadId}`),
+
+  deleteThread: (threadId: string) => api.delete<void>(`/threads/${threadId}`),
 }

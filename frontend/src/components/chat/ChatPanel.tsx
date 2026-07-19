@@ -4,11 +4,12 @@ import { useState, type FormEvent } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { getAccessToken } from '@/lib/api'
+import { getAccessToken, type UIChatMessage } from '@/lib/api'
 import { env } from '@/lib/env'
 
 type ChatPanelProps = {
   threadId: string
+  initialMessages?: UIChatMessage[]
 }
 
 function messageText(parts: Array<{ type: string; text?: string }>): string {
@@ -18,10 +19,11 @@ function messageText(parts: Array<{ type: string; text?: string }>): string {
     .join('')
 }
 
-export function ChatPanel({ threadId }: ChatPanelProps) {
+export function ChatPanel({ threadId, initialMessages = [] }: ChatPanelProps) {
   const [input, setInput] = useState('')
   const { messages, sendMessage, status, error } = useChat({
     id: threadId,
+    messages: initialMessages,
     transport: new DefaultChatTransport({
       api: `${env.apiBaseUrl}/chat/stream`,
       headers: async () => {

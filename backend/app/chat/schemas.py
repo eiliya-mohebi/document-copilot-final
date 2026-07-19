@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -37,3 +38,21 @@ class ThreadCreateResponse(BaseModel):
 
 class ThreadCreateRequest(BaseModel):
     title: str | None = None
+
+
+class ThreadListItem(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: uuid.UUID
+    title: str
+    updated_at: datetime = Field(serialization_alias="updatedAt")
+
+
+class ThreadListResponse(BaseModel):
+    threads: list[ThreadListItem]
+
+
+class ThreadHistoryResponse(BaseModel):
+    id: uuid.UUID
+    title: str
+    messages: list[UIMessage]
