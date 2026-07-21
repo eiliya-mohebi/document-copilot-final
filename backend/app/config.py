@@ -23,6 +23,13 @@ class Settings(BaseSettings):
     # Comma-separated in .env; use `cors_origins` for the parsed list.
     allowed_origins: str = "http://localhost:5173"
 
+    # OpenAI-compatible API (AvalAI). Key is only required by ingest/LLM paths,
+    # which validate it at their own entry points so the API can boot without it.
+    openai_api_key: str = ""
+    openai_base_url: str = "https://api.avalai.ir/v1"
+    openai_embedding_model: str = "text-embedding-3-small"
+    openai_embedding_dimensions: int = 1536
+
     @computed_field
     @property
     def cors_origins(self) -> list[str]:
