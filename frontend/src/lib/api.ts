@@ -24,6 +24,22 @@ export type ThreadListResponse = {
 export type UIMessagePart = {
   type: string
   text?: string
+  data?: unknown
+}
+
+export type MessageCitation = {
+  marker: number
+  chunkId: string
+  documentId: string
+  quote: string | null
+  company: string
+  ticker: string
+  form: string
+  fiscalYear: string
+  filingDate: string
+  section: string | null
+  sourceUrl: string
+  excerpt: string
 }
 
 export type UIChatMessage = {

@@ -102,6 +102,48 @@ class ChatMessage(Base):
     )
 
     thread: Mapped[ChatThread] = relationship(back_populates="messages")
+    citations: Mapped[list[MessageCitation]] = relationship(
+        back_populates="message",
+        cascade="all, delete-orphan",
+    )
+
+
+class MessageCitation(Base):
+    __tablename__ = "message_citations"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    message_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("chat_messages.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # Chunks are replaced on re-ingest, so keep the citation row alive and
+    # rely on the `source` snapshot for display when the chunk disappears.
+    chunk_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("document_chunks.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    document_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("source_documents.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    marker: Mapped[int] = mapped_column(Integer, nullable=False)
+    quote: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    message: Mapped[ChatMessage] = relationship(back_populates="citations")
 
 
 class SourceDocument(Base):

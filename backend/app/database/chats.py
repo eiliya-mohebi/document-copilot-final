@@ -9,7 +9,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database.models import ChatMessage, ChatThread, User
+from app.database.models import ChatMessage, ChatThread, MessageCitation, User
 
 
 async def ensure_user(
@@ -102,6 +102,8 @@ async def append_turn(
     user_text: str,
     user_parts: list[dict[str, Any]],
     assistant_text: str,
+    assistant_parts: list[dict[str, Any]] | None = None,
+    citations: list[dict[str, Any]] | None = None,
 ) -> None:
     result = await session.execute(
         select(func.coalesce(func.max(ChatMessage.sequence_number), 0)).where(
@@ -119,15 +121,27 @@ async def append_turn(
             sequence_number=next_sequence,
         )
     )
-    session.add(
-        ChatMessage(
-            thread_id=thread_id,
-            role="assistant",
-            content=assistant_text,
-            parts=[{"type": "text", "text": assistant_text}],
-            sequence_number=next_sequence + 1,
-        )
+    assistant_message = ChatMessage(
+        thread_id=thread_id,
+        role="assistant",
+        content=assistant_text,
+        parts=assistant_parts or [{"type": "text", "text": assistant_text}],
+        sequence_number=next_sequence + 1,
     )
+    session.add(assistant_message)
+    await session.flush()
+
+    for citation in citations or []:
+        session.add(
+            MessageCitation(
+                message_id=assistant_message.id,
+                chunk_id=citation["chunk_id"],
+                document_id=citation["document_id"],
+                marker=citation["marker"],
+                quote=citation.get("quote"),
+                source=citation.get("source", {}),
+            )
+        )
 
     thread = await session.get(ChatThread, thread_id)
     if thread is not None:

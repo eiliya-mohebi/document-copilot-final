@@ -9,7 +9,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import CurrentUser, get_current_user
-from app.chat.messages import message_to_ui, ui_message_parts, ui_message_text
+from app.chat.messages import message_to_ui
 from app.chat.schemas import (
     ChatStreamRequest,
     ThreadCreateRequest,
@@ -18,7 +18,7 @@ from app.chat.schemas import (
     ThreadListItem,
     ThreadListResponse,
 )
-from app.chat.streaming import STUB_REPLY, stub_ui_message_stream
+from app.chat.orchestrator import stream_chat_turn
 from app.database import chats as chat_store
 from app.database.session import get_session
 
@@ -141,19 +141,8 @@ async def chat_stream(
             detail="Expected a user message",
         )
 
-    async def stream_and_persist():
-        async for chunk in stub_ui_message_stream(STUB_REPLY):
-            yield chunk
-        await chat_store.append_turn(
-            session,
-            thread.id,
-            user_text=ui_message_text(user_message),
-            user_parts=ui_message_parts(user_message),
-            assistant_text=STUB_REPLY,
-        )
-
     return StreamingResponse(
-        stream_and_persist(),
+        stream_chat_turn(session, thread, user_message),
         media_type="text/event-stream",
         headers=_UI_STREAM_HEADERS,
     )

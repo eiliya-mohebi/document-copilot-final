@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     openai_base_url: str = "https://api.avalai.ir/v1"
     openai_embedding_model: str = "text-embedding-3-small"
     openai_embedding_dimensions: int = 1536
+    openai_chat_model: str = "gpt-4.1-mini"
 
     @computed_field
     @property

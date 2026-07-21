@@ -1,4 +1,4 @@
-"""Stub chat stream seam: authenticated POST /chat/stream emits AI SDK UI events."""
+"""Chat stream route: auth/ownership checks and orchestrator wiring."""
 
 from __future__ import annotations
 
@@ -16,6 +16,17 @@ from app.main import app
 USER_ID = uuid.UUID("11111111-1111-1111-1111-111111111111")
 THREAD_ID = uuid.UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
 USER_EMAIL = "analyst@driftwood.com"
+
+STREAM_BODY = {
+    "threadId": str(THREAD_ID),
+    "messages": [
+        {
+            "id": "msg-1",
+            "role": "user",
+            "parts": [{"type": "text", "text": "Hello"}],
+        }
+    ],
+}
 
 
 @pytest.fixture
@@ -40,28 +51,13 @@ def _parse_sse_events(body: str) -> list[dict | str]:
         if not line.startswith("data: "):
             continue
         payload = line.removeprefix("data: ").strip()
-        if payload == "[DONE]":
-            events.append("[DONE]")
-            continue
-        events.append(json.loads(payload))
+        events.append("[DONE]" if payload == "[DONE]" else json.loads(payload))
     return events
 
 
 def test_stream_rejects_missing_bearer() -> None:
     with TestClient(app) as bare_client:
-        response = bare_client.post(
-            "/chat/stream",
-            json={
-                "threadId": str(THREAD_ID),
-                "messages": [
-                    {
-                        "id": "msg-1",
-                        "role": "user",
-                        "parts": [{"type": "text", "text": "Hello"}],
-                    }
-                ],
-            },
-        )
+        response = bare_client.post("/chat/stream", json=STREAM_BODY)
 
     assert response.status_code == 401
 
@@ -71,19 +67,7 @@ def test_stream_rejects_unknown_thread(client: TestClient) -> None:
         "app.api.chat.chat_store.get_thread_by_id",
         AsyncMock(return_value=None),
     ):
-        response = client.post(
-            "/chat/stream",
-            json={
-                "threadId": str(THREAD_ID),
-                "messages": [
-                    {
-                        "id": "msg-1",
-                        "role": "user",
-                        "parts": [{"type": "text", "text": "Hello"}],
-                    }
-                ],
-            },
-        )
+        response = client.post("/chat/stream", json=STREAM_BODY)
 
     assert response.status_code == 404
 
@@ -100,57 +84,51 @@ def test_stream_rejects_other_users_thread(client: TestClient) -> None:
         "app.api.chat.chat_store.get_thread_by_id",
         AsyncMock(return_value=thread),
     ):
-        response = client.post(
-            "/chat/stream",
-            json={
-                "threadId": str(THREAD_ID),
-                "messages": [
-                    {
-                        "id": "msg-1",
-                        "role": "user",
-                        "parts": [{"type": "text", "text": "Hello"}],
-                    }
-                ],
-            },
-        )
+        response = client.post("/chat/stream", json=STREAM_BODY)
 
     assert response.status_code == 403
 
 
-def test_stream_emits_ai_sdk_ui_message_events(client: TestClient) -> None:
+def test_stream_rejects_payload_without_user_message(client: TestClient) -> None:
     thread = type(
         "Thread",
         (),
         {"id": THREAD_ID, "user_id": USER_ID, "title": "New chat"},
     )()
 
-    with (
-        patch(
-            "app.api.chat.chat_store.get_thread_by_id",
-            AsyncMock(return_value=thread),
-        ),
-        patch(
-            "app.api.chat.chat_store.append_turn",
-            AsyncMock(),
-        ),
-        patch(
-            "app.api.chat.stub_ui_message_stream",
-            stub_ui_message_stream_fast,
-        ),
+    with patch(
+        "app.api.chat.chat_store.get_thread_by_id",
+        AsyncMock(return_value=thread),
     ):
         response = client.post(
             "/chat/stream",
-            json={
-                "threadId": str(THREAD_ID),
-                "messages": [
-                    {
-                        "id": "msg-1",
-                        "role": "user",
-                        "parts": [{"type": "text", "text": "Hello"}],
-                    }
-                ],
-            },
+            json={"threadId": str(THREAD_ID), "messages": []},
         )
+
+    assert response.status_code == 422
+
+
+def test_stream_delegates_to_orchestrator_and_relays_events(
+    client: TestClient,
+) -> None:
+    thread = type(
+        "Thread",
+        (),
+        {"id": THREAD_ID, "user_id": USER_ID, "title": "New chat"},
+    )()
+
+    async def fake_stream(session, thread_arg, user_message, **_: object):
+        assert thread_arg is thread
+        assert user_message.role == "user"
+        yield 'data: {"type":"start","messageId":"msg_1"}\n\n'
+        yield 'data: {"type":"text-delta","id":"t1","delta":"grounded"}\n\n'
+        yield "data: [DONE]\n\n"
+
+    with patch(
+        "app.api.chat.chat_store.get_thread_by_id",
+        AsyncMock(return_value=thread),
+    ), patch("app.api.chat.stream_chat_turn", fake_stream):
+        response = client.post("/chat/stream", json=STREAM_BODY)
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
@@ -158,99 +136,4 @@ def test_stream_emits_ai_sdk_ui_message_events(client: TestClient) -> None:
 
     events = _parse_sse_events(response.text)
     assert events[-1] == "[DONE]"
-
-    typed = [e for e in events if isinstance(e, dict)]
-    types = [e["type"] for e in typed]
-    assert "start" in types
-    assert "text-start" in types
-    assert "text-delta" in types
-    assert "text-end" in types
-    assert "finish" in types
-
-    deltas = "".join(e["delta"] for e in typed if e["type"] == "text-delta")
-    assert len(deltas) > 0
-
-
-def test_stream_persists_turn_after_success(client: TestClient) -> None:
-    from app.chat.streaming import STUB_REPLY
-
-    thread = type(
-        "Thread",
-        (),
-        {"id": THREAD_ID, "user_id": USER_ID, "title": "New chat"},
-    )()
-
-    with (
-        patch(
-            "app.api.chat.chat_store.get_thread_by_id",
-            AsyncMock(return_value=thread),
-        ),
-        patch(
-            "app.api.chat.chat_store.append_turn",
-            AsyncMock(),
-        ) as mock_append,
-        patch(
-            "app.api.chat.stub_ui_message_stream",
-            stub_ui_message_stream_fast,
-        ),
-    ):
-        response = client.post(
-            "/chat/stream",
-            json={
-                "threadId": str(THREAD_ID),
-                "messages": [
-                    {
-                        "id": "msg-1",
-                        "role": "user",
-                        "parts": [{"type": "text", "text": "Hello"}],
-                    }
-                ],
-            },
-        )
-
-    assert response.status_code == 200
-    # Consume the stream so the generator can finish and persist.
-    assert "[DONE]" in response.text
-    mock_append.assert_awaited_once()
-    assert mock_append.await_args.args[1] == THREAD_ID
-    assert mock_append.await_args.kwargs["assistant_text"] == STUB_REPLY
-    assert mock_append.await_args.kwargs["user_text"] == "Hello"
-    assert mock_append.await_args.kwargs["user_parts"] == [
-        {"type": "text", "text": "Hello"}
-    ]
-
-
-def test_stream_does_not_persist_when_thread_missing(client: TestClient) -> None:
-    with (
-        patch(
-            "app.api.chat.chat_store.get_thread_by_id",
-            AsyncMock(return_value=None),
-        ),
-        patch(
-            "app.api.chat.chat_store.append_turn",
-            AsyncMock(),
-        ) as mock_append,
-    ):
-        response = client.post(
-            "/chat/stream",
-            json={
-                "threadId": str(THREAD_ID),
-                "messages": [
-                    {
-                        "id": "msg-1",
-                        "role": "user",
-                        "parts": [{"type": "text", "text": "Hello"}],
-                    }
-                ],
-            },
-        )
-
-    assert response.status_code == 404
-    mock_append.assert_not_awaited()
-
-
-async def stub_ui_message_stream_fast(text: str, **_: object):
-    from app.chat.streaming import stub_ui_message_stream
-
-    async for chunk in stub_ui_message_stream(text, chunk_delay_s=0):
-        yield chunk
+    assert {"type": "text-delta", "id": "t1", "delta": "grounded"} in events

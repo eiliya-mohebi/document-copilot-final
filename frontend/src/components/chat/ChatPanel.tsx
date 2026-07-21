@@ -2,9 +2,10 @@ import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import { useState, type FormEvent } from 'react'
 
+import { CitationList } from '@/components/chat/CitationList'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { getAccessToken, type UIChatMessage } from '@/lib/api'
+import { getAccessToken, type MessageCitation, type UIChatMessage } from '@/lib/api'
 import { env } from '@/lib/env'
 
 type ChatPanelProps = {
@@ -17,6 +18,14 @@ function messageText(parts: Array<{ type: string; text?: string }>): string {
     .filter((part) => part.type === 'text' && typeof part.text === 'string')
     .map((part) => part.text ?? '')
     .join('')
+}
+
+function messageCitations(
+  parts: Array<{ type: string; data?: unknown }>,
+): MessageCitation[] {
+  return parts
+    .filter((part) => part.type === 'data-citations' && Array.isArray(part.data))
+    .flatMap((part) => part.data as MessageCitation[])
 }
 
 export function ChatPanel({ threadId, initialMessages = [] }: ChatPanelProps) {
@@ -59,7 +68,7 @@ export function ChatPanel({ threadId, initialMessages = [] }: ChatPanelProps) {
       <div className="flex-1 space-y-4 overflow-y-auto pb-4">
         {messages.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Ask a question to see a stubbed streamed reply.
+            Ask a question about a filing in the corpus to get a cited answer.
           </p>
         ) : null}
 
@@ -71,6 +80,9 @@ export function ChatPanel({ threadId, initialMessages = [] }: ChatPanelProps) {
             <p className="whitespace-pre-wrap text-sm leading-relaxed">
               {messageText(message.parts)}
             </p>
+            {message.role === 'assistant' ? (
+              <CitationList citations={messageCitations(message.parts)} />
+            ) : null}
           </div>
         ))}
 
