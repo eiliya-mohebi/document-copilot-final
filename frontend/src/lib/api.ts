@@ -42,6 +42,12 @@ export type MessageCitation = {
   excerpt: string
 }
 
+export type RefusalReason = 'insufficient_evidence' | 'no_advice'
+
+export type MessageRefusal = {
+  reasons: RefusalReason[]
+}
+
 export type UIChatMessage = {
   id: string
   role: 'user' | 'assistant' | 'system'

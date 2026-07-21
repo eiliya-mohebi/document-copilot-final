@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
+import { ErrorAlert } from '@/components/ErrorAlert'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { api, type ThreadListItem } from '@/lib/api'
-import { ApiError } from '@/lib/http'
+import { friendlyErrorMessage } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 
@@ -39,11 +40,7 @@ export function Home() {
         }
       } catch (err: unknown) {
         if (!cancelled) {
-          if (err instanceof ApiError) {
-            setError(err.message)
-          } else {
-            setError('Could not load chat threads.')
-          }
+          setError(friendlyErrorMessage(err))
         }
       } finally {
         if (!cancelled) {
@@ -65,11 +62,7 @@ export function Home() {
       const thread = await api.createThread()
       navigate(`/chats/${thread.id}`)
     } catch (err: unknown) {
-      if (err instanceof ApiError) {
-        setError(err.message)
-      } else {
-        setError('Could not create a chat thread.')
-      }
+      setError(friendlyErrorMessage(err))
     } finally {
       setIsCreating(false)
     }
@@ -82,11 +75,7 @@ export function Home() {
       await api.deleteThread(threadId)
       setThreads((current) => current.filter((thread) => thread.id !== threadId))
     } catch (err: unknown) {
-      if (err instanceof ApiError) {
-        setError(err.message)
-      } else {
-        setError('Could not delete that chat thread.')
-      }
+      setError(friendlyErrorMessage(err))
     } finally {
       setDeletingId(null)
     }
@@ -98,22 +87,20 @@ export function Home() {
   }
 
   return (
-    <div className="mx-auto flex min-h-svh max-w-lg flex-col justify-center gap-6 p-6">
-      <div>
-        <p className="text-sm text-muted-foreground">Document Copilot</p>
-        <h1 className="text-2xl font-semibold tracking-tight">Your chats</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Open a past thread or start a new one. History persists across refreshes.
+    <div className="mx-auto flex min-h-svh w-full max-w-xl flex-col gap-8 px-6 py-12">
+      <header className="animate-message-in space-y-3">
+        <p className="font-heading text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
+          Document Copilot
         </p>
-      </div>
-
-      {error ? (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
+        <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
+          Your grounded filing research workspace. Open a thread or start a new
+          question against the curated corpus.
         </p>
-      ) : null}
+      </header>
 
-      <div className="flex flex-col gap-3">
+      {error ? <ErrorAlert message={error} /> : null}
+
+      <div className="animate-message-in flex flex-wrap gap-3">
         <Button type="button" onClick={handleNewChat} disabled={isCreating}>
           {isCreating ? 'Creating…' : 'New chat'}
         </Button>
@@ -122,23 +109,33 @@ export function Home() {
         </Button>
       </div>
 
-      <section aria-label="Past chats" className="space-y-3">
+      <section aria-label="Past chats" className="animate-message-in space-y-3">
+        <h2 className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          Your chats
+        </h2>
+
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Loading threads…</p>
         ) : threads.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No chats yet.</p>
+          <div className="rounded-xl border border-dashed border-border/80 bg-card/50 px-4 py-6">
+            <p className="text-sm font-medium text-foreground">No chats yet</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Start a new chat and ask something like how Apple’s revenue mix
+              shifted across recent 10-Ks.
+            </p>
+          </div>
         ) : (
           <ul className="space-y-2">
             {threads.map((thread) => (
               <li
                 key={thread.id}
-                className="flex items-center justify-between gap-3 border-b border-border py-2"
+                className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-card/70 px-3 py-2.5 transition-colors hover:border-primary/25 hover:bg-accent/40"
               >
                 <Link
                   to={`/chats/${thread.id}`}
                   className={cn(
                     buttonVariants({ variant: 'ghost' }),
-                    'h-auto flex-1 justify-start px-0 text-left whitespace-normal',
+                    'h-auto flex-1 justify-start px-0 text-left whitespace-normal hover:bg-transparent',
                   )}
                 >
                   <span className="flex flex-col gap-0.5">

@@ -105,6 +105,17 @@ def _build_citations(
     return payload, records
 
 
+def _build_refusal(answer: GroundedAnswer) -> dict | None:
+    reasons: list[str] = []
+    if answer.insufficient_evidence:
+        reasons.append("insufficient_evidence")
+    if answer.declined_advice:
+        reasons.append("no_advice")
+    if not reasons:
+        return None
+    return {"reasons": reasons}
+
+
 async def stream_chat_turn(
     session: AsyncSession,
     thread: ChatThread,
@@ -152,7 +163,11 @@ async def stream_chat_turn(
     yield sse_event({"type": "text-end", "id": text_id})
 
     citation_payload, citation_records = _build_citations(answer, result.retrieved)
+    refusal_payload = _build_refusal(answer)
     assistant_parts: list[dict] = [{"type": "text", "text": answer.answer}]
+    if refusal_payload:
+        yield sse_event({"type": "data-refusal", "data": refusal_payload})
+        assistant_parts.append({"type": "data-refusal", "data": refusal_payload})
     if citation_payload:
         yield sse_event({"type": "data-citations", "data": citation_payload})
         assistant_parts.append({"type": "data-citations", "data": citation_payload})

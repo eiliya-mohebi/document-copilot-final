@@ -43,3 +43,7 @@ class GroundedAnswer(BaseModel):
         default=False,
         description="True when the retrieved passages cannot support an answer",
     )
+    declined_advice: bool = Field(
+        default=False,
+        description="True when the question asked for stock picks or investment advice and that request was declined",
+    )

@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { ChatPanel } from '@/components/chat/ChatPanel'
+import { ErrorAlert } from '@/components/ErrorAlert'
 import { buttonVariants } from '@/components/ui/button'
 import { api, type UIChatMessage } from '@/lib/api'
-import { ApiError } from '@/lib/http'
+import { friendlyErrorMessage } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 
 export function Chat() {
@@ -29,11 +30,7 @@ export function Chat() {
         }
       } catch (err: unknown) {
         if (!cancelled) {
-          if (err instanceof ApiError) {
-            setError(err.message)
-          } else {
-            setError('Could not load chat history.')
-          }
+          setError(friendlyErrorMessage(err))
         }
       }
     }
@@ -60,9 +57,7 @@ export function Chat() {
   if (error) {
     return (
       <div className="mx-auto flex min-h-svh max-w-lg flex-col justify-center gap-4 p-6">
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
+        <ErrorAlert message={error} />
         <Link to="/" className={cn(buttonVariants({ variant: 'outline' }))}>
           Back home
         </Link>
@@ -81,7 +76,13 @@ export function Chat() {
   return (
     <div className="relative">
       <div className="absolute left-4 top-4 z-10">
-        <Link to="/" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
+        <Link
+          to="/"
+          className={cn(
+            buttonVariants({ variant: 'ghost', size: 'sm' }),
+            'bg-card/60 backdrop-blur-sm',
+          )}
+        >
           ← Chats
         </Link>
       </div>

@@ -154,8 +154,56 @@ async def test_insufficient_evidence_streams_refusal_and_persists() -> None:
     assert "does not contain enough evidence" in deltas
     assert not [e for e in typed if e["type"] == "data-citations"]
 
+    refusal_parts = [e for e in typed if e["type"] == "data-refusal"]
+    assert len(refusal_parts) == 1
+    assert refusal_parts[0]["data"] == {"reasons": ["insufficient_evidence"]}
+
     kwargs = mock_append.await_args.kwargs
     assert kwargs["citations"] == []
+    part_types = [p["type"] for p in kwargs["assistant_parts"]]
+    assert part_types == ["text", "data-refusal"]
+    assert kwargs["assistant_parts"][1]["data"] == {
+        "reasons": ["insufficient_evidence"]
+    }
+
+
+async def test_no_advice_refusal_streams_trust_signal_and_may_keep_citations() -> None:
+    answer = GroundedAnswer(
+        answer=(
+            "I can't give buy/sell recommendations. Apple's filings report "
+            "net sales increased 33% in fiscal 2021 [1]."
+        ),
+        citations=[
+            Citation(marker=1, chunk_id=CHUNK_ID, quote="increased 33%"),
+        ],
+        declined_advice=True,
+    )
+    generate = AsyncMock(
+        return_value=TurnResult(answer=answer, retrieved={CHUNK_ID: passage()})
+    )
+
+    with patch(
+        "app.chat.orchestrator.chat_store.append_turn", AsyncMock()
+    ) as mock_append:
+        events = await collect_events(
+            stream_chat_turn(
+                MagicMock(),
+                make_thread(),
+                user_message("Should I buy Apple stock?"),
+                generate=generate,
+            )
+        )
+
+    typed = [e for e in events if isinstance(e, dict)]
+    refusal_parts = [e for e in typed if e["type"] == "data-refusal"]
+    assert len(refusal_parts) == 1
+    assert refusal_parts[0]["data"] == {"reasons": ["no_advice"]}
+    assert [e for e in typed if e["type"] == "data-citations"]
+
+    kwargs = mock_append.await_args.kwargs
+    part_types = [p["type"] for p in kwargs["assistant_parts"]]
+    assert "data-refusal" in part_types
+    assert "data-citations" in part_types
 
 
 async def test_refusal_with_stray_citations_streams_refusal_without_citations() -> None:

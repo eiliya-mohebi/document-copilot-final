@@ -24,7 +24,7 @@ export function CitationList({ citations }: CitationListProps) {
           key={`${citation.marker}-${citation.chunkId}`}
           type="button"
           onClick={() => setSelectedChunkId(citation.chunkId)}
-          className="flex w-full items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-left text-sm transition-colors hover:bg-muted"
+          className="flex w-full items-start gap-2 rounded-md border border-border/70 bg-background/60 px-3 py-2 text-left text-sm transition-colors hover:border-primary/30 hover:bg-accent/50"
         >
           <span className="font-mono text-xs text-muted-foreground">
             [{citation.marker}]
