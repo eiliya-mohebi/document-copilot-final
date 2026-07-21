@@ -1,3 +1,6 @@
+import { useState } from 'react'
+
+import { PassageSheet } from '@/components/chat/PassageSheet'
 import type { MessageCitation } from '@/lib/api'
 
 type CitationListProps = {
@@ -5,6 +8,8 @@ type CitationListProps = {
 }
 
 export function CitationList({ citations }: CitationListProps) {
+  const [selectedChunkId, setSelectedChunkId] = useState<string | null>(null)
+
   if (citations.length === 0) {
     return null
   }
@@ -15,46 +20,33 @@ export function CitationList({ citations }: CitationListProps) {
         Sources
       </p>
       {citations.map((citation) => (
-        <details
+        <button
           key={`${citation.marker}-${citation.chunkId}`}
-          className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm"
+          type="button"
+          onClick={() => setSelectedChunkId(citation.chunkId)}
+          className="flex w-full items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-left text-sm transition-colors hover:bg-muted"
         >
-          <summary className="cursor-pointer select-none text-sm">
-            <span className="font-mono text-xs text-muted-foreground">
-              [{citation.marker}]
-            </span>{' '}
+          <span className="font-mono text-xs text-muted-foreground">
+            [{citation.marker}]
+          </span>
+          <span>
             <span className="font-medium">{citation.company}</span>{' '}
             <span className="text-muted-foreground">
               {citation.form} FY{citation.fiscalYear}
               {citation.section ? ` · ${citation.section}` : ''}
             </span>
-          </summary>
-          <div className="mt-2 space-y-2 text-sm text-muted-foreground">
-            {citation.quote ? (
-              <p className="italic">“{citation.quote}”</p>
-            ) : null}
-            <p className="whitespace-pre-wrap border-l-2 border-border pl-3">
-              {citation.excerpt}
-            </p>
-            <p className="text-xs">
-              {citation.ticker} · filed {citation.filingDate}
-              {citation.sourceUrl ? (
-                <>
-                  {' · '}
-                  <a
-                    href={citation.sourceUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline hover:text-foreground"
-                  >
-                    view filing
-                  </a>
-                </>
-              ) : null}
-            </p>
-          </div>
-        </details>
+          </span>
+        </button>
       ))}
+
+      <PassageSheet
+        chunkId={selectedChunkId}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedChunkId(null)
+          }
+        }}
+      />
     </div>
   )
 }

@@ -54,6 +54,25 @@ export type ThreadHistoryResponse = {
   messages: UIChatMessage[]
 }
 
+export type Passage = {
+  chunkId: string
+  documentId: string
+  chunkIndex: number
+  text: string
+  section: string | null
+  company: string
+  ticker: string
+  form: string
+  fiscalYear: string
+  filingDate: string
+  sourceUrl: string
+}
+
+export type CitationContextResponse = {
+  passage: Passage
+  neighbors: Passage[]
+}
+
 export async function getAccessToken(): Promise<string | null> {
   const { data } = await supabase.auth.getSession()
   return data.session?.access_token ?? null
@@ -104,4 +123,7 @@ export const api = {
   getThread: (threadId: string) => api.get<ThreadHistoryResponse>(`/threads/${threadId}`),
 
   deleteThread: (threadId: string) => api.delete<void>(`/threads/${threadId}`),
+
+  getCitationContext: (chunkId: string) =>
+    api.get<CitationContextResponse>(`/citations/${chunkId}/context`),
 }
