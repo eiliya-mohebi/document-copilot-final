@@ -56,7 +56,14 @@ def _chunker():
 
 def convert_filing(path: Path) -> ConvertedFiling:
     """Convert one HTML filing into normalized Markdown + hybrid chunks."""
+    from ingest.tables import compact_table
+
     document = _converter().convert(path).document
+    for table in document.tables:
+        compacted = compact_table(table.data)
+        if compacted is not None:
+            table.data = compacted
+
     chunker = _chunker()
 
     chunks = []
